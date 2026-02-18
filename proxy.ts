@@ -2,11 +2,26 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 export async function middleware(request: NextRequest) {
+  const { pathname } = request.nextUrl;
+
+  // Demo route is always public — no Supabase needed
+  if (pathname.startsWith('/demo')) {
+    return NextResponse.next({ request });
+  }
+
+  // If Supabase env vars not configured, only allow /demo
+  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY) {
+    if (!pathname.startsWith('/demo')) {
+      return NextResponse.redirect(new URL('/demo', request.url));
+    }
+    return NextResponse.next({ request });
+  }
+
   let supabaseResponse = NextResponse.next({ request });
 
   const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+    process.env.NEXT_PUBLIC_SUPABASE_URL,
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY,
     {
       cookies: {
         getAll() {
@@ -29,10 +44,8 @@ export async function middleware(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { pathname } = request.nextUrl;
-
   // Public routes that don't need auth
-  const publicRoutes = ['/login', '/api/razorpay/verify-payment'];
+  const publicRoutes = ['/login', '/demo', '/api/razorpay/verify-payment'];
   const isPublicRoute = publicRoutes.some((r) => pathname.startsWith(r));
 
   if (!user && !isPublicRoute && pathname !== '/') {
